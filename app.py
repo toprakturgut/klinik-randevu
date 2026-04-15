@@ -4,11 +4,10 @@ import pandas as pd
 import datetime
 import time
 
-# --- 1. GÜVENLİK ---
+# --- 1. GÜVENLİK (KURŞUNGEÇİRMEZ VERSİYON) ---
 def sifre_kontrol():
-    if "sifre_onayi" not in st.session_state:
-        st.session_state["sifre_onayi"] = False
-    if not st.session_state["sifre_onayi"]:
+    # .get() metodu sayesinde "sifre_onayi bulunamadı" hatasını sonsuza dek yok ettik
+    if not st.session_state.get("sifre_onayi", False):
         st.title("🔒 Klinik Giriş")
         dogru_sifre = st.secrets["credentials"]["sifre"]
         girilen_sifre = st.text_input("Şifre", type="password")
@@ -32,7 +31,7 @@ def init_connection():
 supabase = init_connection()
 
 def verileri_cek():
-    # Supabase'den tüm verileri çek ve Pandas DataFrame'e çevir
+    # Supabase'den verileri çek ve Pandas DataFrame'e çevir
     response = supabase.table("randevular").select("*").execute()
     return pd.DataFrame(response.data)
 
@@ -42,7 +41,6 @@ st.title("Klinik Randevu Yönetimi")
 
 tab_takvim, tab_ekle = st.tabs(["📅 Randevu Takvimi", "➕ Yeni Randevu Ekle"])
 
-# Verileri her sekme değişiminde güncel çekiyoruz
 df = verileri_cek()
 
 with tab_takvim:
@@ -70,14 +68,12 @@ with tab_takvim:
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
-            # Supabase'in ID'sini gizleyerek tabloyu göster
             secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config={"id": None})
             
             if len(secim.selection.rows) > 0:
                 satir = secim.selection.rows[0]
                 silinecek_id = int(df.iloc[satir]['id'])
                 if st.button("Seçili Randevuyu İptal Et", type="primary"):
-                    # Supabase'den ID'ye göre direkt silme işlemi
                     supabase.table("randevular").delete().eq("id", silinecek_id).execute()
                     st.success("Randevu başarıyla iptal edildi!")
                     time.sleep(1.5)
@@ -98,18 +94,15 @@ with tab_ekle:
             if not h_ad.strip():
                 st.error("Lütfen hasta adı giriniz!")
             else:
-                # Çakışma kontrolü
                 if not df.empty and not df[(df['tarih'] == str(tar)) & (df['saat'] == saat)].empty:
                     st.error("Dikkat! Bu saatte başka bir randevu mevcut.")
                 else:
-                    # Supabase'e yeni kayıt ekleme işlemi
                     supabase.table("randevular").insert({
                         "hasta_adi": h_ad,
                         "tedavi": ted,
                         "tarih": str(tar),
                         "saat": saat
                     }).execute()
-                    
                     st.success("Randevu başarıyla eklendi!")
                     time.sleep(1.5)
                     st.rerun()
