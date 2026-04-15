@@ -43,6 +43,15 @@ tab_takvim, tab_ekle = st.tabs(["📅 Randevu Takvimi", "➕ Yeni Randevu Ekle"]
 
 df = verileri_cek()
 
+# TABLOLAR İÇİN MAKYAJ (GÖRÜNTÜ) AYARLARI
+sutun_isimleri = {
+    "id": None, # ID sütununu gizler
+    "hasta_adi": "Hasta Adı",
+    "tedavi": "Tedavi Yöntemi",
+    "tarih": "Tarih",
+    "saat": "Saat"
+}
+
 with tab_takvim:
     st.header("Randevu Kayıtları")
     gorunum = st.radio("Görünüm Seçin:", ["Haftalık Takvim", "Aylık Liste/İptal", "Tüm Geçmiş"], horizontal=True)
@@ -68,7 +77,9 @@ with tab_takvim:
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
-            secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config={"id": None})
+            
+            # column_config=sutun_isimleri kısmını ekledik
+            secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=sutun_isimleri)
             
             if len(secim.selection.rows) > 0:
                 satir = secim.selection.rows[0]
@@ -80,7 +91,8 @@ with tab_takvim:
                     st.rerun()
 
         elif gorunum == "Tüm Geçmiş":
-            st.dataframe(df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True, column_config={"id": None})
+            # column_config=sutun_isimleri kısmını ekledik
+            st.dataframe(df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True, column_config=sutun_isimleri)
 
 with tab_ekle:
     st.header("Yeni Randevu Oluştur")
