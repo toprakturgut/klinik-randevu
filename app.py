@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+from supabase import create_client, Client
 import pandas as pd
 import datetime
 import time
@@ -10,7 +10,6 @@ def sifre_kontrol():
         st.session_state["sifre_onayi"] = False
     if not st.session_state["sifre_onayi"]:
         st.title("🔒 Klinik Giriş")
-        # Şifreyi koddan değil, Secrets'tan çekiyoruz
         dogru_sifre = st.secrets["credentials"]["sifre"]
         girilen_sifre = st.text_input("Şifre", type="password")
         if st.button("Giriş Yap"):
@@ -23,18 +22,27 @@ def sifre_kontrol():
 
 sifre_kontrol()
 
-# --- 2. AYARLAR VE BAĞLANTI ---
-st.set_page_config(page_title="Klinik Randevu Sistemi", layout="wide")
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- 2. SUPABASE BAĞLANTISI ---
+@st.cache_resource
+def init_connection():
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
+
+supabase = init_connection()
 
 def verileri_cek():
-    # Sayfadaki ilk satırı başlık olarak alarak oku
-    return conn.read(ttl="0s")
+    # Supabase'den tüm verileri çek ve Pandas DataFrame'e çevir
+    response = supabase.table("randevular").select("*").execute()
+    return pd.DataFrame(response.data)
 
 # --- 3. ARAYÜZ ---
+st.set_page_config(page_title="Klinik Randevu Sistemi", layout="wide")
 st.title("Klinik Randevu Yönetimi")
+
 tab_takvim, tab_ekle = st.tabs(["📅 Randevu Takvimi", "➕ Yeni Randevu Ekle"])
 
+# Verileri her sekme değişiminde güncel çekiyoruz
 df = verileri_cek()
 
 with tab_takvim:
@@ -42,7 +50,7 @@ with tab_takvim:
     gorunum = st.radio("Görünüm Seçin:", ["Haftalık Takvim", "Aylık Liste/İptal", "Tüm Geçmiş"], horizontal=True)
     
     if df.empty:
-        st.info("Henüz kayıt bulunmuyor.")
+        st.info("Sistemde henüz kayıt bulunmuyor.")
     else:
         if gorunum == "Haftalık Takvim":
             secilen_tarih = st.date_input("Hafta seçin:", datetime.date.today())
@@ -51,6 +59,7 @@ with tab_takvim:
             gun_isimleri = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
             kolonlar = [f"{gun_isimleri[i]} ({tarihler[i]})" for i in range(7)]
             saatler = [f"{str(i).zfill(2)}:00" for i in range(8, 24)]
+            
             tablo = pd.DataFrame(index=saatler, columns=kolonlar).fillna("-")
             
             for _, row in df.iterrows():
@@ -61,39 +70,46 @@ with tab_takvim:
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
-            # Pandas ID kolonunu gösterme ama seçim için kullan
-            secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+            # Supabase'in ID'sini gizleyerek tabloyu göster
+            secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config={"id": None})
+            
             if len(secim.selection.rows) > 0:
-                idx = secim.selection.rows[0]
+                satir = secim.selection.rows[0]
+                silinecek_id = int(df.iloc[satir]['id'])
                 if st.button("Seçili Randevuyu İptal Et", type="primary"):
-                    yeni_df = df.drop(df.index[idx])
-                    conn.update(data=yeni_df)
-                    st.success("İptal edildi!")
-                    time.sleep(1)
+                    # Supabase'den ID'ye göre direkt silme işlemi
+                    supabase.table("randevular").delete().eq("id", silinecek_id).execute()
+                    st.success("Randevu başarıyla iptal edildi!")
+                    time.sleep(1.5)
                     st.rerun()
 
         elif gorunum == "Tüm Geçmiş":
-            st.dataframe(df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True)
+            st.dataframe(df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True, column_config={"id": None})
 
 with tab_ekle:
-    st.header("Yeni Randevu")
+    st.header("Yeni Randevu Oluştur")
     with st.form("ekle_form", clear_on_submit=True):
         h_ad = st.text_input("Hasta Adı")
-        ted = st.selectbox("Tedavi", ["Pilates", "Manuel Terapi"])
-        tar = st.date_input("Tarih", datetime.date.today())
-        saat = st.selectbox("Saat", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
+        ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi"])
+        tar = st.date_input("Randevu Tarihi", datetime.date.today())
+        saat = st.selectbox("Randevu Saati", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
         
-        if st.form_submit_button("Kaydet"):
-            if not h_ad:
-                st.error("Lütfen hasta adı girin!")
+        if st.form_submit_button("Randevuyu Kaydet"):
+            if not h_ad.strip():
+                st.error("Lütfen hasta adı giriniz!")
             else:
                 # Çakışma kontrolü
-                if not df[(df['tarih'] == str(tar)) & (df['saat'] == saat)].empty:
-                    st.error("Bu saatte başka bir randevu var!")
+                if not df.empty and not df[(df['tarih'] == str(tar)) & (df['saat'] == saat)].empty:
+                    st.error("Dikkat! Bu saatte başka bir randevu mevcut.")
                 else:
-                    yeni_data = pd.DataFrame([{"id": len(df)+1, "hasta_adi": h_ad, "tedavi": ted, "tarih": str(tar), "saat": saat}])
-                    guncel_df = pd.concat([df, yeni_data], ignore_index=True)
-                    conn.update(data=guncel_df)
+                    # Supabase'e yeni kayıt ekleme işlemi
+                    supabase.table("randevular").insert({
+                        "hasta_adi": h_ad,
+                        "tedavi": ted,
+                        "tarih": str(tar),
+                        "saat": saat
+                    }).execute()
+                    
                     st.success("Randevu başarıyla eklendi!")
-                    time.sleep(1)
+                    time.sleep(1.5)
                     st.rerun()
