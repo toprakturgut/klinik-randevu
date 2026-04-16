@@ -62,14 +62,13 @@ with tab_takvim:
     else:
         if gorunum == "Haftalık Takvim":
             
-            # --- ZAMAN BÜKÜCÜ & UX GÜNCELLEMESİ ---
-            # Sunucu Amerika'da olsa da biz Türkiye saatini (UTC+3) zorla alıyoruz
+            # --- SADECE SAAT DİLİMİ DÜZELTMESİ (PAZARTESİ ZORLAMASI KALKTI) ---
             tr_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
             bugun = tr_saati.date()
 
-            # HAFIZA: Uygulama açıldığında bugünü değil, direkt bu haftanın PAZARTESİ gününü seç
+            # HAFIZA: Uygulama açıldığında direkt bugünü seç (Türkiye saatiyle)
             if "secilen_tarih" not in st.session_state:
-                st.session_state["secilen_tarih"] = bugun - datetime.timedelta(days=bugun.weekday())
+                st.session_state["secilen_tarih"] = bugun
 
             def onceki_hafta():
                 st.session_state["secilen_tarih"] -= datetime.timedelta(days=7)
@@ -84,7 +83,6 @@ with tab_takvim:
                 st.button("⬅️ Önceki Hafta", use_container_width=True, on_click=onceki_hafta)
 
             with c2:
-                # Kullanıcı kendi eliyle tarih seçerse de hafıza güncellenir
                 st.session_state["secilen_tarih"] = st.date_input("Hafta seçin:", value=st.session_state["secilen_tarih"], format="DD.MM.YYYY")
 
             with c3:
@@ -133,7 +131,6 @@ with tab_ekle:
         h_ad = st.text_input("Hasta Adı")
         ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi", "Muayene"])
         
-        # Buraya da Türkiye saatini verdik ki yeni randevu eklerken dünü göstermesin
         tr_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
         bugun = tr_saati.date()
         
