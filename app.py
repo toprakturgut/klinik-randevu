@@ -98,7 +98,7 @@ with tab_ekle:
     st.header("Yeni Randevu Oluştur")
     with st.form("ekle_form", clear_on_submit=True):
         h_ad = st.text_input("Hasta Adı")
-        ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi"])
+        ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi", "Muayene"])
         tar = st.date_input("Randevu Tarihi", datetime.date.today())
         saat = st.selectbox("Randevu Saati", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
         
