@@ -6,7 +6,6 @@ import time
 
 # --- 1. GÜVENLİK (KURŞUNGEÇİRMEZ VERSİYON) ---
 def sifre_kontrol():
-    # .get() metodu sayesinde "sifre_onayi bulunamadı" hatasını sonsuza dek yok ettik
     if not st.session_state.get("sifre_onayi", False):
         st.title("🔒 Klinik Giriş")
         dogru_sifre = st.secrets["credentials"]["sifre"]
@@ -31,7 +30,6 @@ def init_connection():
 supabase = init_connection()
 
 def verileri_cek():
-    # Supabase'den verileri çek ve Pandas DataFrame'e çevir
     response = supabase.table("randevular").select("*").execute()
     return pd.DataFrame(response.data)
 
@@ -43,7 +41,6 @@ tab_takvim, tab_ekle = st.tabs(["📅 Randevu Takvimi", "➕ Yeni Randevu Ekle"]
 
 df = verileri_cek()
 
-# TABLOLAR İÇİN MAKYAJ (GÖRÜNTÜ) AYARLARI
 sutun_isimleri = {
     "id": None,
     "hasta_adi": "Hasta Adı",
@@ -56,7 +53,6 @@ with tab_takvim:
     st.header("Randevu Kayıtları")
     gorunum = st.radio("Görünüm Seçin:", ["Haftalık Takvim", "Aylık Liste/İptal", "Tüm Geçmiş"], horizontal=True)
     
-    # GÖRÜNTÜ İÇİN ÖZEL TABLO (Orijinal veriyi bozmadan tarihleri TR formatına çeviriyoruz)
     gosterim_df = df.copy()
     if not gosterim_df.empty:
         gosterim_df['tarih'] = pd.to_datetime(gosterim_df['tarih']).dt.strftime('%d.%m.%Y')
@@ -66,34 +62,34 @@ with tab_takvim:
     else:
         if gorunum == "Haftalık Takvim":
             
-            # 1. HAFIZA: Uygulama açıldığında bugünü hafızaya al
+            # HAFIZA
             if "secilen_tarih" not in st.session_state:
                 st.session_state["secilen_tarih"] = datetime.date.today()
 
-            # 2. ÜÇLÜ KOLON YASASI: Butonlar ve Tarih yan yana dursun
+            # BUTONLAR İÇİN CALLBACK FONKSİYONLARI (HATAYI ÇÖZEN KISIM)
+            def onceki_hafta():
+                st.session_state["secilen_tarih"] -= datetime.timedelta(days=7)
+
+            def sonraki_hafta():
+                st.session_state["secilen_tarih"] += datetime.timedelta(days=7)
+
             c1, c2, c3 = st.columns([1, 2, 1])
 
             with c1:
-                st.write("") # Dikey hizalama için ufak boşluk
-                if st.button("⬅️ Önceki Hafta", use_container_width=True):
-                    st.session_state["secilen_tarih"] -= datetime.timedelta(days=7)
-                    st.rerun()
+                st.write("") 
+                # on_click metodu ile tıklandığında üstteki fonksiyonları çağırıyoruz
+                st.button("⬅️ Önceki Hafta", use_container_width=True, on_click=onceki_hafta)
 
             with c2:
-                # Takvim artık hafızadaki 'key' ile çalışıyor
                 st.date_input("Hafta seçin:", key="secilen_tarih", format="DD.MM.YYYY")
 
             with c3:
-                st.write("") # Dikey hizalama için ufak boşluk
-                if st.button("Sonraki Hafta ➡️", use_container_width=True):
-                    st.session_state["secilen_tarih"] += datetime.timedelta(days=7)
-                    st.rerun()
+                st.write("") 
+                st.button("Sonraki Hafta ➡️", use_container_width=True, on_click=sonraki_hafta)
 
-            # 3. HESAPLAMA: Hafızadaki tarihi alıp pazartesiyi buluyoruz
             islem_tarihi = st.session_state["secilen_tarih"]
             pazartesi = islem_tarihi - datetime.timedelta(days=islem_tarihi.weekday())
             
-            # Veritabanı okuması için YYYY-MM-DD, Ekranda göstermek için DD.MM.YYYY
             db_tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
             tr_tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%d.%m.%Y") for i in range(7)]
             
@@ -108,13 +104,11 @@ with tab_takvim:
                     col_idx = db_tarihler.index(str(row['tarih']))
                     tablo.at[row['saat'], kolonlar[col_idx]] = f"{row['hasta_adi']} ({row['tedavi']})"
             
-            # height=650 ile scroll'u ortadan kaldırdık, ekran ferahladı
             st.dataframe(tablo, use_container_width=True, height=650)
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
             
-            # df yerine TR formatlı gosterim_df'i kullanıyoruz
             secim = st.dataframe(gosterim_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=sutun_isimleri)
             
             if len(secim.selection.rows) > 0:
@@ -134,7 +128,6 @@ with tab_ekle:
     with st.form("ekle_form", clear_on_submit=True):
         h_ad = st.text_input("Hasta Adı")
         ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi", "Muayene"])
-        # format="DD.MM.YYYY" eklendi
         tar = st.date_input("Randevu Tarihi", datetime.date.today(), format="DD.MM.YYYY")
         saat = st.selectbox("Randevu Saati", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
         
