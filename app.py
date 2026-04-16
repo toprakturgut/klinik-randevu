@@ -62,11 +62,15 @@ with tab_takvim:
     else:
         if gorunum == "Haftalık Takvim":
             
-            # HAFIZA
-            if "secilen_tarih" not in st.session_state:
-                st.session_state["secilen_tarih"] = datetime.date.today()
+            # --- ZAMAN BÜKÜCÜ & UX GÜNCELLEMESİ ---
+            # Sunucu Amerika'da olsa da biz Türkiye saatini (UTC+3) zorla alıyoruz
+            tr_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+            bugun = tr_saati.date()
 
-            # BUTONLAR İÇİN CALLBACK FONKSİYONLARI (HATAYI ÇÖZEN KISIM)
+            # HAFIZA: Uygulama açıldığında bugünü değil, direkt bu haftanın PAZARTESİ gününü seç
+            if "secilen_tarih" not in st.session_state:
+                st.session_state["secilen_tarih"] = bugun - datetime.timedelta(days=bugun.weekday())
+
             def onceki_hafta():
                 st.session_state["secilen_tarih"] -= datetime.timedelta(days=7)
 
@@ -77,11 +81,11 @@ with tab_takvim:
 
             with c1:
                 st.write("") 
-                # on_click metodu ile tıklandığında üstteki fonksiyonları çağırıyoruz
                 st.button("⬅️ Önceki Hafta", use_container_width=True, on_click=onceki_hafta)
 
             with c2:
-                st.date_input("Hafta seçin:", key="secilen_tarih", format="DD.MM.YYYY")
+                # Kullanıcı kendi eliyle tarih seçerse de hafıza güncellenir
+                st.session_state["secilen_tarih"] = st.date_input("Hafta seçin:", value=st.session_state["secilen_tarih"], format="DD.MM.YYYY")
 
             with c3:
                 st.write("") 
@@ -128,7 +132,12 @@ with tab_ekle:
     with st.form("ekle_form", clear_on_submit=True):
         h_ad = st.text_input("Hasta Adı")
         ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi", "Muayene"])
-        tar = st.date_input("Randevu Tarihi", datetime.date.today(), format="DD.MM.YYYY")
+        
+        # Buraya da Türkiye saatini verdik ki yeni randevu eklerken dünü göstermesin
+        tr_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+        bugun = tr_saati.date()
+        
+        tar = st.date_input("Randevu Tarihi", bugun, format="DD.MM.YYYY")
         saat = st.selectbox("Randevu Saati", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
         
         if st.form_submit_button("Randevuyu Kaydet"):
