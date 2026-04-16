@@ -65,9 +65,33 @@ with tab_takvim:
         st.info("Sistemde henüz kayıt bulunmuyor.")
     else:
         if gorunum == "Haftalık Takvim":
-            # format="DD.MM.YYYY" eklendi
-            secilen_tarih = st.date_input("Hafta seçin:", datetime.date.today(), format="DD.MM.YYYY")
-            pazartesi = secilen_tarih - datetime.timedelta(days=secilen_tarih.weekday())
+            
+            # 1. HAFIZA: Uygulama açıldığında bugünü hafızaya al
+            if "secilen_tarih" not in st.session_state:
+                st.session_state["secilen_tarih"] = datetime.date.today()
+
+            # 2. ÜÇLÜ KOLON YASASI: Butonlar ve Tarih yan yana dursun
+            c1, c2, c3 = st.columns([1, 2, 1])
+
+            with c1:
+                st.write("") # Dikey hizalama için ufak boşluk
+                if st.button("⬅️ Önceki Hafta", use_container_width=True):
+                    st.session_state["secilen_tarih"] -= datetime.timedelta(days=7)
+                    st.rerun()
+
+            with c2:
+                # Takvim artık hafızadaki 'key' ile çalışıyor
+                st.date_input("Hafta seçin:", key="secilen_tarih", format="DD.MM.YYYY")
+
+            with c3:
+                st.write("") # Dikey hizalama için ufak boşluk
+                if st.button("Sonraki Hafta ➡️", use_container_width=True):
+                    st.session_state["secilen_tarih"] += datetime.timedelta(days=7)
+                    st.rerun()
+
+            # 3. HESAPLAMA: Hafızadaki tarihi alıp pazartesiyi buluyoruz
+            islem_tarihi = st.session_state["secilen_tarih"]
+            pazartesi = islem_tarihi - datetime.timedelta(days=islem_tarihi.weekday())
             
             # Veritabanı okuması için YYYY-MM-DD, Ekranda göstermek için DD.MM.YYYY
             db_tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
