@@ -45,7 +45,7 @@ df = verileri_cek()
 
 # TABLOLAR İÇİN MAKYAJ (GÖRÜNTÜ) AYARLARI
 sutun_isimleri = {
-    "id": None, # ID sütununu gizler
+    "id": None,
     "hasta_adi": "Hasta Adı",
     "tedavi": "Tedavi Yöntemi",
     "tarih": "Tarih",
@@ -56,30 +56,42 @@ with tab_takvim:
     st.header("Randevu Kayıtları")
     gorunum = st.radio("Görünüm Seçin:", ["Haftalık Takvim", "Aylık Liste/İptal", "Tüm Geçmiş"], horizontal=True)
     
+    # GÖRÜNTÜ İÇİN ÖZEL TABLO (Orijinal veriyi bozmadan tarihleri TR formatına çeviriyoruz)
+    gosterim_df = df.copy()
+    if not gosterim_df.empty:
+        gosterim_df['tarih'] = pd.to_datetime(gosterim_df['tarih']).dt.strftime('%d.%m.%Y')
+    
     if df.empty:
         st.info("Sistemde henüz kayıt bulunmuyor.")
     else:
         if gorunum == "Haftalık Takvim":
-            secilen_tarih = st.date_input("Hafta seçin:", datetime.date.today())
+            # format="DD.MM.YYYY" eklendi
+            secilen_tarih = st.date_input("Hafta seçin:", datetime.date.today(), format="DD.MM.YYYY")
             pazartesi = secilen_tarih - datetime.timedelta(days=secilen_tarih.weekday())
-            tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+            
+            # Veritabanı okuması için YYYY-MM-DD, Ekranda göstermek için DD.MM.YYYY
+            db_tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+            tr_tarihler = [(pazartesi + datetime.timedelta(days=i)).strftime("%d.%m.%Y") for i in range(7)]
+            
             gun_isimleri = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
-            kolonlar = [f"{gun_isimleri[i]} ({tarihler[i]})" for i in range(7)]
+            kolonlar = [f"{gun_isimleri[i]} ({tr_tarihler[i]})" for i in range(7)]
             saatler = [f"{str(i).zfill(2)}:00" for i in range(8, 24)]
             
             tablo = pd.DataFrame(index=saatler, columns=kolonlar).fillna("-")
             
             for _, row in df.iterrows():
-                if str(row['tarih']) in tarihler:
-                    col_idx = tarihler.index(str(row['tarih']))
+                if str(row['tarih']) in db_tarihler:
+                    col_idx = db_tarihler.index(str(row['tarih']))
                     tablo.at[row['saat'], kolonlar[col_idx]] = f"{row['hasta_adi']} ({row['tedavi']})"
-            st.dataframe(tablo, use_container_width=True)
+            
+            # height=650 ile scroll'u ortadan kaldırdık, ekran ferahladı
+            st.dataframe(tablo, use_container_width=True, height=650)
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
             
-            # column_config=sutun_isimleri kısmını ekledik
-            secim = st.dataframe(df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=sutun_isimleri)
+            # df yerine TR formatlı gosterim_df'i kullanıyoruz
+            secim = st.dataframe(gosterim_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=sutun_isimleri)
             
             if len(secim.selection.rows) > 0:
                 satir = secim.selection.rows[0]
@@ -91,15 +103,15 @@ with tab_takvim:
                     st.rerun()
 
         elif gorunum == "Tüm Geçmiş":
-            # column_config=sutun_isimleri kısmını ekledik
-            st.dataframe(df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True, column_config=sutun_isimleri)
+            st.dataframe(gosterim_df.sort_values(by=["tarih", "saat"]), use_container_width=True, hide_index=True, column_config=sutun_isimleri)
 
 with tab_ekle:
     st.header("Yeni Randevu Oluştur")
     with st.form("ekle_form", clear_on_submit=True):
         h_ad = st.text_input("Hasta Adı")
         ted = st.selectbox("Tedavi Yöntemi", ["Pilates", "Manuel Terapi", "Muayene"])
-        tar = st.date_input("Randevu Tarihi", datetime.date.today())
+        # format="DD.MM.YYYY" eklendi
+        tar = st.date_input("Randevu Tarihi", datetime.date.today(), format="DD.MM.YYYY")
         saat = st.selectbox("Randevu Saati", [f"{str(i).zfill(2)}:00" for i in range(8, 24)])
         
         if st.form_submit_button("Randevuyu Kaydet"):
