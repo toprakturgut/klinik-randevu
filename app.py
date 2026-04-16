@@ -106,7 +106,7 @@ with tab_takvim:
                     col_idx = db_tarihler.index(str(row['tarih']))
                     tablo.at[row['saat'], kolonlar[col_idx]] = f"{row['hasta_adi']} ({row['tedavi']})"
             
-            st.dataframe(tablo, use_container_width=True, height=590)
+            st.dataframe(tablo, use_container_width=True, height=595)
 
         elif gorunum == "Aylık Liste/İptal":
             st.markdown("👇 **İptal etmek için satıra tıklayın ve butona basın:**")
